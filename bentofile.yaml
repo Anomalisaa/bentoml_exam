@@ -1,0 +1,18 @@
+service: "src.service:service"
+
+include:
+  - src/service.py
+  - data/processed/
+
+python:
+  packages:
+    - bentoml
+    - tensorflow
+    - numpy
+    - joblib
+    - PyJWT
+    - scikit-learn
+
+docker:
+  base_image: python:3.8-slim
+  dockerfile_template: "./Dockerfile.template"
