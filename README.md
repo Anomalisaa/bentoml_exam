@@ -13,6 +13,7 @@ You will need the following tools:
 # Project Structure
 This is the project structure of the repository.
 
+```bash
 examen_bentoml/
 ├── bentofile.yaml
 ├── Dockerfile.template          
@@ -35,6 +36,7 @@ examen_bentoml/
 │   └── test_prediction.sh 
 └── README.md   
 └── requirements.txt               
+```
 
 # How to...
 1. Download raw data
@@ -58,67 +60,66 @@ pip install --upgrade pip
 pip install -r requirements.txt
 ```
 
-4. Build Bento & Containerize
+4. Run the data preparation script
 
-4.1 Build the Bento
+```bash
+python src/prepare_data.py --input data/raw/admission.csv --output-dir data/processed
+```
+
+# Train the Model & Register with BentoML
+1. Train the Model
+```bash
+python src/train_model.py --data-dir data/processed --model-name admissions_linear
+```
+2. Confirm the model is saved in the BentoML Model Store
+```bash
+bentoml models list
+```
+# Build Bento & Containerize
+
+1. Build the Bento
 
 ```bash
 bentoml build
 ```
 
-4.2 Create Docker Image
+2. Create Docker Image
 
-Create a Docker image: admissions_prediction
+Create a Docker image: admissions_prediction. Use the service name and version defined in bentofile.yaml.
 
 ```bash
 bentoml containerize admissions_prediction:1.0.0 \
   -t admissions_prediction:latest
 ```
 
+# Run the Containerized API
 
-4.3 Run the Container
+Start the container, passing the JWT secret for authentication:
 
 ```bash
-docker run --rm -p 3000:3000 admissions_prediction:latest
+docker run --rm \
+  -e JWT_SECRET="secret" \
+  -p 3000:3000 \
+  --name admissions_service \
+  admissions_service:latest
+  ```
+
+The API is now available at http://localhost:3000.
+
+And you will see:
+```bash
+{"prediction": 0.81127...}
 ```
 
-The API will be available at http://localhost:3000.
-
-4. Test the API
-
-4.1 Login to Obtain JWT Token
-
-curl -X POST http://localhost:3000/login \
-  -H "Content-Type: application/json" \
-  -d '{"username":"admin","password":"secret"}'
-
-Response:
-
-{"access_token":"<JWT_TOKEN>"}
-
-4.2 Request a Prediction
-
-curl -X POST http://localhost:3000/predict \
-  -H "Content-Type: application/json" \
-  -H "Authorization: Bearer <JWT_TOKEN>" \
-  -d '{
-    "gre_score": 320,
-    "toefl_score": 110,
-    "university_rating": 4,
-    "sop": 4.5,
-    "lor": 4.0,
-    "cgpa": 9.1,
-    "research": 1
-}'
-
-The response will be: 
-
-{"chance_of_admit": 0.81127...}
-
 # Run Unit Tests
+
+Run the pytest suite:
 
 ```bash
 pytest tests/test_service.py -v
 ```
-
-You see: All tests should PASS.
+All 7 tests should PASS, covering:
+- Invalid/valid login (401 vs. 200 + token)
+- Missing/invalid/expired JWT (401)
+- Malformed input (400)
+- Successful prediction (200 + float)
