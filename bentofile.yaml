@@ -1,18 +1,23 @@
-service: "src.service:service"
-
+# bentofile.yaml
+service: "src.service:svc"
+description: "Admission Prediction Service (Linear Regression + JWT auth)"
+labels:
+  owner: "Isabell Gurstein"
+  project: "AdmissionsPrediction"
 include:
-  - src/service.py
-  - data/processed/
-
+  - "src/"
+  - "data/processed/"
+docker:
+  base_image: "python:3.8-slim"
 python:
   packages:
-    - bentoml
-    - tensorflow
-    - numpy
-    - joblib
-    - PyJWT
     - scikit-learn
-
-docker:
-  base_image: python:3.8-slim
-  dockerfile_template: "./Dockerfile.template"
+    - pandas
+    - numpy
+    - bentoml
+    - python-dotenv
+    - pyjwt
+    - fastapi
+    - uvicorn
+    - joblib
+    - requests

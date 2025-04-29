@@ -4,4 +4,7 @@ tensorflow
 bentoml
 pydantic
 joblib
+fastapi
+uvicorn
 pyjwt
+pytest

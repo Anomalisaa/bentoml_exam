@@ -5,42 +5,63 @@ import bentoml
 from bentoml.io import JSON
 import jwt
 from datetime import datetime, timedelta
+from bentoml import Context
+from starlette.exceptions import HTTPException
+from bentoml.exceptions import BadInput
 
-# Load scaler and model runner
+# scaler and runner
 scaler = joblib.load(os.path.join("data", "processed", "scaler.pkl"))
-runner = bentoml.tensorflow.get("admissions_dense_nn:latest").to_runner()
+runner = bentoml.sklearn.get("admissions_linear:latest").to_runner()
 
-# Define BentoML service
-service = bentoml.Service("admissions_service", runners=[runner])
+# BentoML service
+#service = bentoml.Service("admissions_service", runners=[runner]) <-- old 500 error
+svc = bentoml.Service("admissions_service", runners=[runner])
 
-# Helper: create JWT token
+SECRET_KEY = "secret"
+
+# JWT creation
 def create_jwt():
     expire = datetime.utcnow() + timedelta(hours=1)
-    token = jwt.encode({"exp": expire}, "secret", algorithm="HS256")
-    return token if isinstance(token, str) else token.decode()
+    return jwt.encode({"exp": expire}, SECRET_KEY, algorithm="HS256")
 
-# Login endpoint: returns JWT
-@service.api(input=JSON(), output=JSON(), route="/login")
+# JWT verification
+def verify_jwt(token):
+    try:
+        jwt.decode(token, SECRET_KEY, algorithms=["HS256"])
+    except jwt.ExpiredSignatureError:
+        raise HTTPException(status_code=401, detail="Token expired")
+    except jwt.InvalidTokenError:
+        raise HTTPException(status_code=401, detail="Invalid token")
+
+# Login endpoint
+@svc.api(input=JSON(), output=JSON(), route="/login")
 def login(body: dict):
     user = body.get("username")
     pw = body.get("password")
     if user == "user123" and pw == "password123":
         return {"token": create_jwt()}
-    raise bentoml.exceptions.BadInput("Invalid credentials")
+    raise BadInput("Invalid credentials")
 
-# Function to extract features
-def extract_features(body: dict) -> np.ndarray:
+# endpoint (JWT protected)
+@svc.api(input=JSON(), output=JSON())
+async def predict(input_data, ctx: Context):
+    # JWT verification
+    auth_header = ctx.request.headers.get("Authorization")
+    if not auth_header or not auth_header.startswith("Bearer "):
+        raise HTTPException(status_code=401, detail="Missing Bearer token")
+    token = auth_header.split(" ")[1]
+    verify_jwt(token)
+
+    # Data extraction
     feature_keys = ["GRE Score", "TOEFL Score", "University Rating", "SOP", "LOR", "CGPA", "Research"]
     try:
-        values = [float(body[k]) for k in feature_keys]
+        arr = np.array([[input_data[col] for col in feature_keys]])
     except KeyError as e:
-        raise bentoml.exceptions.BadInput(f"Missing feature: {e.args[0]}")
-    return np.array(values).reshape(1, -1)
+        raise BadInput(f"Missing feature: {e.args[0]}")
 
-# Predict endpoint: requires Bearer token
-@service.api(input=JSON(), output=JSON())
-async def predict(input_data):
-    arr = np.array([[input_data[col] for col in ["GRE Score", "TOEFL Score", "University Rating", "SOP", "LOR", "CGPA", "Research"]]])
+    # Scaling
     arr_scaled = scaler.transform(arr)
+
+    # Prediction
     result = await runner.async_run(arr_scaled)
     return {"prediction": float(result[0])}

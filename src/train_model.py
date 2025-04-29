@@ -1,52 +1,38 @@
+#!/usr/bin/env python3
+# train_model.py
+
 import os
 import pandas as pd
-import bentoml
+from sklearn.linear_model import LinearRegression
 from sklearn.metrics import r2_score, mean_squared_error
-import tensorflow as tf
-from tensorflow.keras.models import Sequential
-from tensorflow.keras.layers import Dense, Input
+import bentoml
 
-# Define paths
-data_dir = os.path.join("data", "processed")
+# Directory for processed data
+PROCESSED_DIR = "data/processed"
 
 # Load processed data
-X_train = pd.read_csv(os.path.join(data_dir, 'X_train.csv'))
-X_test = pd.read_csv(os.path.join(data_dir, 'X_test.csv'))
-y_train = pd.read_csv(os.path.join(data_dir, 'y_train.csv')).squeeze()
-y_test = pd.read_csv(os.path.join(data_dir, 'y_test.csv')).squeeze()
+print("Loading processed data.")
+X_train = pd.read_csv(os.path.join(PROCESSED_DIR, "X_train.csv"))
+y_train = pd.read_csv(os.path.join(PROCESSED_DIR, "y_train.csv")).squeeze()
+X_test = pd.read_csv(os.path.join(PROCESSED_DIR, "X_test.csv"))
+y_test = pd.read_csv(os.path.join(PROCESSED_DIR, "y_test.csv")).squeeze()
 
-# Build DNN model
-input_dim = X_train.shape[1]
-model = Sequential([
-    Input(shape=(input_dim,)),
-    Dense(64, activation='relu'),
-    Dense(32, activation='relu'),
-    Dense(1, activation='linear')
-])
-# Compile the model
-model.compile(
-    optimizer='adam',
-    loss='mse',
-    metrics=['mse']
+# Linear Regression model
+print("Training Linear Regression model.")
+model = LinearRegression()
+model.fit(X_train, y_train)
+
+# model performance
+print("Evaluating model.")
+predictions = model.predict(X_test)
+print(f"R^2 score: {r2_score(y_test, predictions):.4f}")
+print(f"RMSE: {mean_squared_error(y_test, predictions, squared=False):.4f}")
+
+# Save model to BentoML
+print("Saving model with BentoML.")
+saved_model = bentoml.sklearn.save_model(
+    "admissions_linear",
+    model,
+    signatures={"predict": {"batchable": True, "batch_dim": 0}}
 )
-
-# Train the model
-model.fit(
-    X_train, y_train,
-    validation_split=0.1,
-    epochs=50,
-    batch_size=32,
-    verbose=2
-)
-
-# Evaluate performance on test set
-preds = model.predict(X_test).squeeze()
-r2 = r2_score(y_test, preds)
-rmse = mean_squared_error(y_test, preds, squared=False)
-print("Model performance on test set:")
-print(f"- R2 score: {r2:.4f}")
-print(f"- RMSE: {rmse:.4f}")
-
-# Save the trained model to BentoML Model Store
-model_ref = bentoml.tensorflow.save_model("admissions_dense_nn", model)
-print(f"Model saved to BentoML with reference: {model_ref}")
+print("Model saved as:", saved_model)
