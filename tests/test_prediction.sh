@@ -5,7 +5,7 @@ TOKEN=$(curl -s -X POST http://127.0.0.1:3000/login \
   -H "Content-Type: application/json" \
   -d '{"username":"user123","password":"password123"}' | jq -r '.token')
 
-echo "Known Token:"
+echo "Bekannter Token:"
 echo $TOKEN
 echo ""
 
