@@ -72,7 +72,7 @@ Create a Docker image: admissions_prediction
 
 ```bash
 bentoml containerize admissions_prediction:1.0.0 \
-  -t <YourName>_admissions_prediction:latest
+  -t admissions_prediction:latest
 ```
 
 
@@ -113,7 +113,7 @@ curl -X POST http://localhost:3000/predict \
 
 The response will be: 
 
-{"chance_of_admit": 0.82}
+{"chance_of_admit": 0.81127...}
 
 # Run Unit Tests
 
